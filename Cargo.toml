@@ -1,0 +1,10 @@
+[package]
+name = "unicorn-test"
+version = "0.1.0"
+authors = ["Robin Lange <robin.langenc@gmail.com>"]
+edition = "2018"
+
+[dependencies]
+unicorn_hat_hd = "0.2"
+failure = "0.1.6"
+image = "0.22.3"

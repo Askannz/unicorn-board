@@ -2,7 +2,7 @@ use std::time::Duration;
 use std::thread;
 use std::rc::Rc;
 use image::GrayImage;
-use unicorn_hat_hd::UnicornHatHd;
+use unicorn_hat_hd::{UnicornHatHd, Rotate};
 
 const CHAR_SIZE: u32 = 8;
 const NB_LINES: u32 = 2;
@@ -41,10 +41,10 @@ impl UnicornBoard {
         let font_map = Rc::new(UnicornBoard::load_fontmap());
         let lines = (0..NB_LINES).map(|i| BoardLine::new(font_map.clone(), i)).collect();
 
-        UnicornBoard {
-            hat_hd: UnicornHatHd::default(),
-            lines
-        }
+        let mut hat_hd = UnicornHatHd::default();
+        hat_hd.set_rotation(Rotate::Rot180);
+
+        UnicornBoard { hat_hd, lines }
     }
 
     fn load_fontmap() -> Vec<GrayImage> {

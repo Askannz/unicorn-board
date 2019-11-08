@@ -24,9 +24,9 @@ fn main() {
 
     let mut board = UnicornBoard::new();
 
-    board.set_text(0, "OREWA GUNDAMU !!!!".into(), (255, 0, 0), true, 1.0);
-    board.set_text(1, "------------------".into(), (0, 255, 0), false, 0.0);
-    board.set_text(2, "123456789".into(), (0, 0, 255), true, 2.0);
+    board.set_text(0, "OREWA GUNDAMU !!!!".into(), (255, 0, 0), Scroll::On(1.0));
+    board.set_text(1, "------------------".into(), (0, 255, 0), Scroll::Off);
+    board.set_text(2, "123456789".into(), (0, 0, 255), Scroll::On(1.0));
     board.display();
 
     loop {
@@ -36,6 +36,10 @@ fn main() {
     }
 }
 
+enum Scroll {
+    Off,
+    On(f32)
+}
 
 struct UnicornBoard {
 
@@ -76,8 +80,8 @@ impl UnicornBoard {
         font_map
     }
 
-    fn set_text(&mut self, line_index: usize, text: String, color: (u8, u8, u8), scroll: bool, speed: f32) {
-        self.lines[line_index].set_text(text, color, scroll, speed);
+    fn set_text(&mut self, line_index: usize, text: String, color: (u8, u8, u8), scroll_mode: Scroll) {
+        self.lines[line_index].set_text(text, color, scroll_mode);
     }
 
     fn display(&mut self) {
@@ -102,8 +106,7 @@ struct BoardLine {
     text: String,
     color: (u8, u8, u8),
     y: u32,
-    scroll: bool,
-    speed: f32,
+    scroll_mode: Scroll,
     text_offset: u32,
     prev_instant: Instant,
     font_map: Rc<Vec<GrayImage>>
@@ -119,15 +122,14 @@ impl BoardLine {
             text: " ".repeat(MAX_CHARS_PER_LINE as usize),
             color: (50, 50, 50),
             y,
-            scroll: false,
-            speed: 0.0,
+            scroll_mode: Scroll::Off,
             text_offset: 0,
             prev_instant: Instant::now(),
             font_map: font_map
         }
     }
 
-    fn set_text(&mut self, text: String, color: (u8, u8, u8), scroll: bool, speed: f32) {
+    fn set_text(&mut self, text: String, color: (u8, u8, u8), scroll_mode: Scroll) {
 
         let n = MAX_CHARS_PER_LINE as usize;
 
@@ -137,15 +139,14 @@ impl BoardLine {
         };
 
         self.color = color;
-        self.scroll = scroll;
-        self.speed = speed;
+        self.scroll_mode = scroll_mode;
     }
 
     fn display(&self, hat_hd: &mut UnicornHatHd) {
 
-        let offset = {
-            if self.scroll { self.text_offset }
-            else { 0 }
+        let offset = match self.scroll_mode {
+            Scroll::Off => 0,
+            Scroll::On(_) => self.text_offset
         };
         
         for (i, c) in self.text.chars().cycle()
@@ -161,7 +162,10 @@ impl BoardLine {
 
     fn update_scroll(&mut self) {
 
-        let dt = (1000.0 / self.speed) as u128;
+        let dt = match self.scroll_mode {
+            Scroll::Off => 0,
+            Scroll::On(speed) => (1000.0 / speed) as u128
+        };
 
         let now = Instant::now();
         if now.duration_since(self.prev_instant).as_millis() > dt {

@@ -18,18 +18,20 @@ const SCREEN_H: u32 = 16;
 
 const NB_LINES: u32 = 3;
 
+const MAX_CHARS_PER_LINE: u32 = SCREEN_W / CHAR_W;
+
 fn main() {
 
     let mut board = UnicornBoard::new();
 
-    board.set_text(0, "OREW".into(), (255, 0, 0));
-    board.set_text(1, "AGUN".into(), (0, 255, 0));
-    board.set_text(2, "DAMU".into(), (0, 0, 255));
+    board.set_text(0, "OREWA GUNDAMU !!!!".into(), (255, 0, 0), true);
+    board.set_text(1, "------------------".into(), (0, 255, 0), false);
+    board.set_text(2, "OwO               ".into(), (0, 0, 255), false);
     board.display();
-    
 
     loop {
-        
+        board.update_scroll();
+        board.display();
         thread::sleep(Duration::from_secs(1));
     }
 }
@@ -74,8 +76,8 @@ impl UnicornBoard {
         font_map
     }
 
-    fn set_text(&mut self, line_index: usize, text: String, color: (u8, u8, u8)) {
-        self.lines[line_index].set_text(text, color);
+    fn set_text(&mut self, line_index: usize, text: String, color: (u8, u8, u8), scroll: bool) {
+        self.lines[line_index].set_text(text, color, scroll);
     }
 
     fn display(&mut self) {
@@ -85,6 +87,12 @@ impl UnicornBoard {
         }
 
         self.hat_hd.display().unwrap();
+    }
+
+    fn update_scroll(&mut self) {
+        for line in self.lines.iter_mut() {
+            line.update_scroll();
+        }
     }
 
 }
@@ -106,7 +114,7 @@ impl BoardLine {
         let y = line_index * CHAR_H;
 
         BoardLine { 
-            text: "".to_owned(),
+            text: " ".repeat(MAX_CHARS_PER_LINE as usize),
             color: (50, 50, 50),
             y,
             scroll: false,
@@ -115,18 +123,39 @@ impl BoardLine {
         }
     }
 
-    fn set_text(&mut self, text: String, color: (u8, u8, u8)) {
-        self.text = text;
+    fn set_text(&mut self, text: String, color: (u8, u8, u8), scroll: bool) {
+
+        let n = MAX_CHARS_PER_LINE as usize;
+
+        self.text = {
+            if text.len() < n { format!("{: <1$}", text, n) }
+            else { text }
+        };
+
         self.color = color;
+        self.scroll = scroll;
     }
 
     fn display(&self, hat_hd: &mut UnicornHatHd) {
 
-        for (i, c) in self.text.chars().enumerate() {
+        let offset = {
+            if self.scroll { self.text_offset }
+            else { 0 }
+        };
+        
+        for (i, c) in self.text.chars().cycle()
+                                       .skip(offset as usize)
+                                       .take(MAX_CHARS_PER_LINE as usize)
+                                       .enumerate() {
+
             let x = (i as u32) * CHAR_W;
             self.display_char(hat_hd, c, x, self.y);
         }
 
+    }
+
+    fn update_scroll(&mut self) {
+        self.text_offset = (self.text_offset + 1) % (self.text.len() as u32);
     }
 
     fn display_char(&self, hat_hd: &mut UnicornHatHd, c: char, x: u32, y: u32) {

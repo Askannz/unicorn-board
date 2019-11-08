@@ -1,5 +1,5 @@
 [package]
-name = "unicorn-test"
+name = "unicorn-board"
 version = "0.1.0"
 authors = ["Robin Lange <robin.langenc@gmail.com>"]
 edition = "2018"

@@ -1,7 +1,7 @@
 use std::time::{Duration, Instant};
 use std::thread;
 use std::rc::Rc;
-use image::GrayImage;
+use image::{GrayImage, RgbImage, Rgb};
 use unicorn_hat_hd::{UnicornHatHd, Rotate};
 
 const CHAR_W: u32 = 4;
@@ -24,9 +24,9 @@ fn main() {
 
     let mut board = UnicornBoard::new();
 
-    board.set_text(0, "OREWA GUNDAMU !!!!".into(), (255, 0, 0), Scroll::On(1.0));
+    board.set_text(0, "OREWA GUNDAMU !!!!".into(), (255, 0, 0), Scroll::On(8.0));
     board.set_text(1, "------------------".into(), (0, 255, 0), Scroll::Off);
-    board.set_text(2, "123456789".into(), (0, 0, 255), Scroll::On(1.0));
+    board.set_text(2, "123456789".into(), (0, 0, 255), Scroll::Off);
     board.display();
 
     loop {
@@ -103,12 +103,11 @@ impl UnicornBoard {
 
 struct BoardLine {
 
-    text: String,
-    color: (u8, u8, u8),
     y: u32,
     scroll_mode: Scroll,
-    text_offset: u32,
+    x_offset: u32,
     prev_instant: Instant,
+    pixmap: RgbImage,
     font_map: Rc<Vec<GrayImage>>
 }
 
@@ -119,45 +118,78 @@ impl BoardLine {
         let y = line_index * CHAR_H;
 
         BoardLine { 
-            text: " ".repeat(MAX_CHARS_PER_LINE as usize),
-            color: (50, 50, 50),
             y,
             scroll_mode: Scroll::Off,
-            text_offset: 0,
+            x_offset: 0,
             prev_instant: Instant::now(),
+            pixmap: BoardLine::make_pixmap(&font_map, "".into(), (0, 0, 0)),
             font_map: font_map
         }
     }
 
-    fn set_text(&mut self, text: String, color: (u8, u8, u8), scroll_mode: Scroll) {
+    fn make_pixmap(font_map: &Vec<GrayImage>, text: String, color: (u8, u8, u8)) -> RgbImage {
 
         let n = MAX_CHARS_PER_LINE as usize;
 
-        self.text = {
+        let padded_text = {
             if text.len() < n { format!("{: <1$}", text, n) }
             else { text }
         };
 
-        self.color = color;
+        let pixmap_w = padded_text.len() as u32 * CHAR_W;
+        let pixmap_h = CHAR_H;
+
+        let mut pixmap = RgbImage::new(pixmap_w, pixmap_h);
+
+        for (i, c) in padded_text.chars().enumerate() {
+            for dx in 0..CHAR_W {
+                for dy in 0..CHAR_H {
+
+                    let x = (i as u32) * CHAR_W + dx;
+                    let y = dy;
+
+                    let active = font_map[c as usize].get_pixel(dx, dy)[0] > 0;
+                    let color = if active { color } else { (0, 0, 0) };
+
+                    let (r, g, b) = color;
+                    *pixmap.get_pixel_mut(x, y) = Rgb([r, g, b]);
+                }
+            }
+        }
+
+        pixmap
+    }
+
+    fn set_text(&mut self, text: String, color: (u8, u8, u8), scroll_mode: Scroll) {
+
+        self.pixmap = BoardLine::make_pixmap(&self.font_map, text, color);
         self.scroll_mode = scroll_mode;
+        self.x_offset = 0;
     }
 
     fn display(&self, hat_hd: &mut UnicornHatHd) {
 
-        let offset = match self.scroll_mode {
+        let x_offset = match self.scroll_mode {
             Scroll::Off => 0,
-            Scroll::On(_) => self.text_offset
+            Scroll::On(_) => self.x_offset
         };
-        
-        for (i, c) in self.text.chars().cycle()
-                                       .skip(offset as usize)
-                                       .take(MAX_CHARS_PER_LINE as usize)
-                                       .enumerate() {
 
-            let x = (i as u32) * CHAR_W;
-            self.display_char(hat_hd, c, x, self.y);
+        let pixmap_w = self.pixmap.width();
+
+        for dx in 0..SCREEN_W {
+            for dy in 0..CHAR_H {
+
+                let x_pixmap = (x_offset + dx) % pixmap_w;
+                let y_pixmap = dy;
+
+                let x_screen = dx;
+                let y_screen = self.y + dy;
+
+                let Rgb(color) = self.pixmap.get_pixel(x_pixmap, y_pixmap);
+                hat_hd.set_pixel(x_screen as usize, y_screen as usize, (*color).into());
+            }
+
         }
-
     }
 
     fn update_scroll(&mut self) {
@@ -169,28 +201,9 @@ impl BoardLine {
 
         let now = Instant::now();
         if now.duration_since(self.prev_instant).as_millis() > dt {
-            self.text_offset = (self.text_offset + 1) % (self.text.len() as u32);
+            self.x_offset = (self.x_offset + 1) % (self.pixmap.width() as u32);
             self.prev_instant = now;
         }
-    }
-
-    fn display_char(&self, hat_hd: &mut UnicornHatHd, c: char, x: u32, y: u32) {
-
-        let char_map = &self.font_map[c as usize];
-
-        for dx in 0..CHAR_W {
-            for dy in 0..CHAR_H {
-                
-                let active = char_map.get_pixel(dx, dy)[0] > 0;
-
-                let color = if active { self.color } else { (0, 0, 0) };
-
-                let (xp, yp) = ((x + dx) as usize, (y + dy) as usize);
-                hat_hd.set_pixel(xp, yp, color.into());
-
-            }
-        }
-
     }
 
 }

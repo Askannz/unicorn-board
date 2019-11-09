@@ -16,18 +16,16 @@ const FONTMAP_NB_LINES: u32 = 4;
 const SCREEN_W: u32 = 16;
 const SCREEN_H: u32 = 16;
 
-const NB_LINES: u32 = 3;
-
 const MAX_CHARS_PER_LINE: u32 = SCREEN_W / CHAR_W;
 
 fn main() {
 
     let mut board = UnicornBoard::new();
 
-    board.set_text(0, "OREWA GUNDAMU !!!!".into(), (255, 0, 0), Scroll::On(8.0));
-    board.set_text(1, "------------------".into(), (0, 255, 0), Scroll::Off);
-    board.set_text(2, "123456789".into(), (0, 0, 255), Scroll::Off);
-    board.display();
+    let line_1 = board.new_line(0, "HELLO THERE".into()).with_color(50, 50, 0).with_scroll(Scroll::On(4.0)).build();
+    let line_2 = board.new_line(10, "GENERAL KENOBI".into()).with_color(0, 50, 50).with_scroll(Scroll::On(8.0)).build();
+    board.add_line(line_1);
+    board.add_line(line_2);
 
     loop {
         board.update_scroll();
@@ -36,6 +34,7 @@ fn main() {
     }
 }
 
+#[derive(Clone, Copy)]
 enum Scroll {
     Off,
     On(f32)
@@ -44,7 +43,8 @@ enum Scroll {
 struct UnicornBoard {
 
     hat_hd: UnicornHatHd,
-    lines: Vec<BoardLine>
+    lines: Vec<BoardLine>,
+    font_map: Rc<Vec<GrayImage>>
 
 }
 
@@ -52,13 +52,18 @@ impl UnicornBoard {
 
     fn new() -> UnicornBoard {
 
-        let font_map = Rc::new(UnicornBoard::load_fontmap());
-        let lines = (0..NB_LINES).map(|i| BoardLine::new(font_map.clone(), i)).collect();
-
         let mut hat_hd = UnicornHatHd::default();
         hat_hd.set_rotation(Rotate::Rot180);
 
-        UnicornBoard { hat_hd, lines }
+        UnicornBoard { 
+            hat_hd,
+            lines: Vec::new(),
+            font_map: Rc::new(UnicornBoard::load_fontmap())
+        }
+    }
+
+    fn new_line(&self, y: u32, text: String) -> BoardLineBuilder {
+        BoardLineBuilder::new(self.font_map.clone(), y, text)
     }
 
     fn load_fontmap() -> Vec<GrayImage> {
@@ -80,8 +85,8 @@ impl UnicornBoard {
         font_map
     }
 
-    fn set_text(&mut self, line_index: usize, text: String, color: (u8, u8, u8), scroll_mode: Scroll) {
-        self.lines[line_index].set_text(text, color, scroll_mode);
+    fn add_line(&mut self, line: BoardLine) {
+        self.lines.push(line);
     }
 
     fn display(&mut self) {
@@ -101,6 +106,54 @@ impl UnicornBoard {
 
 }
 
+#[derive(Clone)]
+struct BoardLineBuilder {
+
+    font_map: Rc<Vec<GrayImage>>,
+    y: u32,
+    scroll_mode: Scroll,
+    text: String,
+    color: (u8, u8, u8)
+}
+
+impl BoardLineBuilder {
+
+    fn new(font_map: Rc<Vec<GrayImage>>, y: u32, text: String) -> BoardLineBuilder {
+        BoardLineBuilder {
+            font_map,
+            y,
+            scroll_mode: Scroll::Off,
+            text,
+            color: (255, 255, 255)
+        }
+    }
+
+    fn build(&self) -> BoardLine {
+
+        BoardLine { 
+            y: self.y,
+            scroll_mode: self.scroll_mode,
+            x_offset: 0,
+            prev_instant: Instant::now(),
+            pixmap: BoardLine::make_pixmap(&self.font_map, &self.text, self.color)
+        }
+
+    }
+
+    fn with_color(&self, r: u8, g: u8, b: u8) -> BoardLineBuilder {
+        let mut new_builder = (*self).clone();
+        new_builder.color = (r, g, b);
+        new_builder
+    }
+
+    fn with_scroll(&self, scroll_mode: Scroll) -> BoardLineBuilder {
+        let mut new_builder = self.clone();
+        new_builder.scroll_mode = scroll_mode;
+        new_builder
+    }
+
+}
+
 struct BoardLine {
 
     y: u32,
@@ -108,32 +161,17 @@ struct BoardLine {
     x_offset: u32,
     prev_instant: Instant,
     pixmap: RgbImage,
-    font_map: Rc<Vec<GrayImage>>
 }
 
 impl BoardLine {
 
-    fn new(font_map: Rc<Vec<GrayImage>>, line_index: u32) -> BoardLine {
-
-        let y = line_index * CHAR_H;
-
-        BoardLine { 
-            y,
-            scroll_mode: Scroll::Off,
-            x_offset: 0,
-            prev_instant: Instant::now(),
-            pixmap: BoardLine::make_pixmap(&font_map, "".into(), (0, 0, 0)),
-            font_map: font_map
-        }
-    }
-
-    fn make_pixmap(font_map: &Vec<GrayImage>, text: String, color: (u8, u8, u8)) -> RgbImage {
+    fn make_pixmap(font_map: &Vec<GrayImage>, text: &String, color: (u8, u8, u8)) -> RgbImage {
 
         let n = MAX_CHARS_PER_LINE as usize;
 
-        let padded_text = {
+        let padded_text: String = {
             if text.len() < n { format!("{: <1$}", text, n) }
-            else { text }
+            else { text.clone() }
         };
 
         let pixmap_w = padded_text.len() as u32 * CHAR_W;
@@ -158,13 +196,6 @@ impl BoardLine {
         }
 
         pixmap
-    }
-
-    fn set_text(&mut self, text: String, color: (u8, u8, u8), scroll_mode: Scroll) {
-
-        self.pixmap = BoardLine::make_pixmap(&self.font_map, text, color);
-        self.scroll_mode = scroll_mode;
-        self.x_offset = 0;
     }
 
     fn display(&self, hat_hd: &mut UnicornHatHd) {

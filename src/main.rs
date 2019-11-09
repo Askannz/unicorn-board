@@ -22,8 +22,8 @@ fn main() {
 
     let mut board = UnicornBoard::new();
 
-    let line_1 = board.new_line(0, "HELLO THERE".into()).with_color(50, 50, 0).with_scroll(Scroll::On(4.0)).build();
-    let line_2 = board.new_line(10, "GENERAL KENOBI".into()).with_color(0, 50, 50).with_scroll(Scroll::On(8.0)).build();
+    let line_1 = board.new_line(0, "HELLO THERE".into()).with_color(50, 50, 0).with_scroll(Scroll::Left(4.0)).build();
+    let line_2 = board.new_line(10, "GENERAL KENOBI".into()).with_color(0, 50, 50).with_scroll(Scroll::Right(4.0)).build();
     board.add_line(line_1);
     board.add_line(line_2);
 
@@ -37,7 +37,8 @@ fn main() {
 #[derive(Clone, Copy)]
 enum Scroll {
     Off,
-    On(f32)
+    Left(f32),
+    Right(f32),
 }
 
 struct UnicornBoard {
@@ -200,17 +201,12 @@ impl BoardLine {
 
     fn display(&self, hat_hd: &mut UnicornHatHd) {
 
-        let x_offset = match self.scroll_mode {
-            Scroll::Off => 0,
-            Scroll::On(_) => self.x_offset
-        };
-
         let pixmap_w = self.pixmap.width();
 
         for dx in 0..SCREEN_W {
             for dy in 0..CHAR_H {
 
-                let x_pixmap = (x_offset + dx) % pixmap_w;
+                let x_pixmap = (self.x_offset + dx) % pixmap_w;
                 let y_pixmap = dy;
 
                 let x_screen = dx;
@@ -225,16 +221,24 @@ impl BoardLine {
 
     fn update_scroll(&mut self) {
 
-        let dt = match self.scroll_mode {
-            Scroll::Off => 0,
-            Scroll::On(speed) => (1000.0 / speed) as u128
+        let scroll_mode = self.scroll_mode;
+
+        let mut update = |speed, inc: i32| {
+
+            let dt = (1000.0 / speed) as u128;
+            let now = Instant::now();
+            if now.duration_since(self.prev_instant).as_millis() > dt {
+                let x_offset_inc: i32 = self.x_offset as i32 + inc;
+                self.x_offset = x_offset_inc.rem_euclid(self.pixmap.width() as i32) as u32;
+                self.prev_instant = now;
+            }
         };
 
-        let now = Instant::now();
-        if now.duration_since(self.prev_instant).as_millis() > dt {
-            self.x_offset = (self.x_offset + 1) % (self.pixmap.width() as u32);
-            self.prev_instant = now;
-        }
+        match scroll_mode {
+            Scroll::Off => {},
+            Scroll::Left(speed) => update(speed, 1),
+            Scroll::Right(speed) => update(speed, -1)
+        };
     }
 
 }

@@ -19,10 +19,10 @@ const MAX_CHARS_PER_LINE: u32 = SCREEN_W / CHAR_W;
 #[derive(Clone, Copy)]
 pub enum Scroll {
     Off,
-    Left { speed: f32, padding: u32 },
-    Right { speed: f32, padding: u32 },
-    LeftAuto { speed: f32, padding: u32 },
-    RightAuto { speed: f32, padding: u32 },
+    Left { speed: f32, spacing: u32 },
+    Right { speed: f32, spacing: u32 },
+    LeftAuto { speed: f32, spacing: u32 },
+    RightAuto { speed: f32, spacing: u32 },
 }
 
 pub struct UnicornBoard {
@@ -147,26 +147,26 @@ impl BoardLine {
 
         let n = MAX_CHARS_PER_LINE as usize;
 
+        let scroll_speed = match scroll_mode {
+            Scroll::Off => 0.0,
+            Scroll::Left { speed, spacing: _ } => speed,
+            Scroll::Right { speed, spacing: _ } => -speed,
+            Scroll::LeftAuto { speed, spacing: _ } => if text.len() > n { speed } else { 0.0 },
+            Scroll::RightAuto { speed, spacing: _ } => if text.len() > n { -speed } else { 0.0 },
+        };
+
         let text = match scroll_mode {
 
-            Scroll::Left { speed: _, padding } | Scroll::LeftAuto { speed: _, padding } => {
-                text + &String::from(" ").repeat(padding as usize)
+            Scroll::Left { speed: _, spacing } | Scroll::LeftAuto { speed: _, spacing } => {
+                text + &String::from(" ").repeat(spacing as usize)
             },
 
-            Scroll::Right { speed: _, padding } | Scroll::RightAuto { speed: _, padding } => {
-                String::from(" ").repeat(padding as usize) + &text
+            Scroll::Right { speed: _, spacing } | Scroll::RightAuto { speed: _, spacing } => {
+                String::from(" ").repeat(spacing as usize) + &text
             },
 
             _ => text.clone()
 
-        };
-
-        let scroll_speed = match scroll_mode {
-            Scroll::Off => 0.0,
-            Scroll::Left { speed, padding: _ } => speed,
-            Scroll::Right { speed, padding: _ } => -speed,
-            Scroll::LeftAuto { speed, padding: _ } => if text.len() > n { speed } else { 0.0 },
-            Scroll::RightAuto { speed, padding: _ } => if text.len() > n { -speed } else { 0.0 },
         };
 
         BoardLine { 

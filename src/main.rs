@@ -9,18 +9,14 @@ use unicorn_board::{UnicornBoard, Scroll, Line};
 
 fn main() {
 
-    let text = match env::args().skip(1).next() {
-        Some(text) => text,
-        None => {
-            println!("No text specified !");
-            std::process::exit(1)
-        }
-    };
-
+    let texts_list: Vec<String> = env::args().skip(1).collect();
     let mut board = UnicornBoard::new();
 
-    let line = Line::new(&text, 4).with_color(127, 63, 0).with_scroll(Scroll::LeftAuto { speed: 16.0, spacing: 5 });
-    board.set_lines(&[line]);
+    let lines_list: Vec<Line> = texts_list.iter().map(|text| {
+        Line::new(&text).with_color(127, 63, 0).with_scroll(Scroll::LeftAuto { speed: 16.0, spacing: 5 })
+    }).collect();
+
+    board.set_lines(&lines_list);
 
     let running = Arc::new(AtomicBool::new(true));
 

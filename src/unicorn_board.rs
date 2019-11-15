@@ -48,8 +48,9 @@ impl UnicornBoard {
     }
 
     pub fn set_lines(&mut self, line_configs_list: &[Line]) {
-        for line_config in line_configs_list {
-            self.lines.push(BoardLine::new(&self.font_map, line_config.clone()));
+        for (i, line_config) in line_configs_list.iter().enumerate() {
+            let y = (i as u32) * CHAR_H;
+            self.lines.push(BoardLine::new(&self.font_map, y, line_config.clone()));
         }
     }
 
@@ -99,7 +100,6 @@ impl Drop for UnicornBoard {
 
 #[derive(Clone)]
 pub struct Line {
-    y: u32,
     scroll_mode: Scroll,
     text: String,
     color: (u8, u8, u8)
@@ -107,10 +107,9 @@ pub struct Line {
 
 impl Line {
 
-    pub fn new(text: &str, y: u32) -> Line {
+    pub fn new(text: &str) -> Line {
 
         Line {
-            y,
             scroll_mode: Scroll::Off,
             text: text.into(),
             color: (255, 255, 255)
@@ -143,9 +142,9 @@ pub struct BoardLine {
 
 impl BoardLine {
 
-    fn new(font_map: &Vec<GrayImage>, line_config: Line) -> BoardLine {
+    fn new(font_map: &Vec<GrayImage>, y: u32, line_config: Line) -> BoardLine {
 
-        let Line { y, scroll_mode, text, color } = line_config;
+        let Line { scroll_mode, text, color } = line_config;
 
         let n = MAX_CHARS_PER_LINE as usize;
 

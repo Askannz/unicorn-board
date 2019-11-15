@@ -1,5 +1,4 @@
 use std::time::Instant;
-use std::rc::Rc;
 use image::{GrayImage, RgbImage, Rgb};
 use unicorn_hat_hd::{UnicornHatHd, Rotate};
 
@@ -28,7 +27,7 @@ pub struct UnicornBoard {
 
     hat_hd: UnicornHatHd,
     lines: Vec<BoardLine>,
-    font_map: Rc<Vec<GrayImage>>
+    font_map: Vec<GrayImage>
 
 }
 
@@ -42,16 +41,12 @@ impl UnicornBoard {
         UnicornBoard { 
             hat_hd,
             lines: Vec::new(),
-            font_map: Rc::new(UnicornBoard::load_fontmap())
+            font_map: UnicornBoard::load_fontmap()
         }
     }
 
-    pub fn new_line(&self, y: u32, text: &str) -> BoardLineBuilder {
-        BoardLineBuilder::new(self.font_map.clone(), y, text)
-    }
-
-    pub fn add_line(&mut self, line: BoardLine) {
-        self.lines.push(line);
+    pub fn add_line(&mut self, line_config: Line) {
+        self.lines.push(BoardLine::new(&self.font_map, line_config));
     }
 
     pub fn display(&mut self) {
@@ -92,49 +87,36 @@ impl UnicornBoard {
 }
 
 #[derive(Clone)]
-pub struct BoardLineBuilder {
-
-    font_map: Rc<Vec<GrayImage>>,
+pub struct Line {
     y: u32,
     scroll_mode: Scroll,
     text: String,
     color: (u8, u8, u8)
 }
 
-impl BoardLineBuilder {
+impl Line {
 
-    fn new(font_map: Rc<Vec<GrayImage>>, y: u32, text: &str) -> BoardLineBuilder {
-        BoardLineBuilder {
-            font_map,
+    pub fn new(text: &str, y: u32) -> Line {
+
+        Line {
             y,
             scroll_mode: Scroll::Off,
             text: text.into(),
             color: (255, 255, 255)
         }
-    }
-
-    pub fn build(&self) -> BoardLine {
-
-        BoardLine { 
-            y: self.y,
-            scroll_mode: self.scroll_mode,
-            x_offset: 0,
-            prev_instant: Instant::now(),
-            pixmap: BoardLine::make_pixmap(&self.font_map, &self.text, self.color)
-        }
 
     }
 
-    pub fn with_color(&self, r: u8, g: u8, b: u8) -> BoardLineBuilder {
-        let mut new_builder = (*self).clone();
-        new_builder.color = (r, g, b);
-        new_builder
+    pub fn with_color(&self, r: u8, g: u8, b: u8) -> Line {
+        let mut new_line = (*self).clone();
+        new_line.color = (r, g, b);
+        new_line
     }
 
-    pub fn with_scroll(&self, scroll_mode: Scroll) -> BoardLineBuilder {
-        let mut new_builder = self.clone();
-        new_builder.scroll_mode = scroll_mode;
-        new_builder
+    pub fn with_scroll(&self, scroll_mode: Scroll) -> Line {
+        let mut new_line = self.clone();
+        new_line.scroll_mode = scroll_mode;
+        new_line
     }
 
 }
@@ -149,6 +131,19 @@ pub struct BoardLine {
 }
 
 impl BoardLine {
+
+    fn new(font_map: &Vec<GrayImage>, line_config: Line) -> BoardLine {
+
+        let Line { y, scroll_mode, text, color } = line_config;
+
+        BoardLine { 
+            y,
+            scroll_mode,
+            x_offset: 0,
+            prev_instant: Instant::now(),
+            pixmap: BoardLine::make_pixmap(font_map, &text, color)
+        }
+    }
 
     fn make_pixmap(font_map: &Vec<GrayImage>, text: &String, color: (u8, u8, u8)) -> RgbImage {
 

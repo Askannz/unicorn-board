@@ -19,8 +19,10 @@ const MAX_CHARS_PER_LINE: u32 = SCREEN_W / CHAR_W;
 #[derive(Clone, Copy)]
 pub enum Scroll {
     Off,
-    Left(f32),
-    Right(f32),
+    Left { speed: f32, padding: u32 },
+    Right { speed: f32, padding: u32 },
+    LeftAuto { speed: f32, padding: u32 },
+    RightAuto { speed: f32, padding: u32 },
 }
 
 pub struct UnicornBoard {
@@ -131,7 +133,7 @@ impl Line {
 pub struct BoardLine {
 
     y: u32,
-    scroll_mode: Scroll,
+    scroll_speed: f32,
     x_offset: u32,
     prev_instant: Instant,
     pixmap: RgbImage,
@@ -143,9 +145,33 @@ impl BoardLine {
 
         let Line { y, scroll_mode, text, color } = line_config;
 
+        let n = MAX_CHARS_PER_LINE as usize;
+
+        let text = match scroll_mode {
+
+            Scroll::Left { speed: _, padding } | Scroll::LeftAuto { speed: _, padding } => {
+                text + &String::from(" ").repeat(padding as usize)
+            },
+
+            Scroll::Right { speed: _, padding } | Scroll::RightAuto { speed: _, padding } => {
+                String::from(" ").repeat(padding as usize) + &text
+            },
+
+            _ => text.clone()
+
+        };
+
+        let scroll_speed = match scroll_mode {
+            Scroll::Off => 0.0,
+            Scroll::Left { speed, padding: _ } => speed,
+            Scroll::Right { speed, padding: _ } => -speed,
+            Scroll::LeftAuto { speed, padding: _ } => if text.len() > n { speed } else { 0.0 },
+            Scroll::RightAuto { speed, padding: _ } => if text.len() > n { -speed } else { 0.0 },
+        };
+
         BoardLine { 
             y,
-            scroll_mode,
+            scroll_speed,
             x_offset: 0,
             prev_instant: Instant::now(),
             pixmap: BoardLine::make_pixmap(font_map, &text, color)
@@ -207,24 +233,15 @@ impl BoardLine {
 
     fn update_scroll(&mut self) {
 
-        let scroll_mode = self.scroll_mode;
+        let inc = if self.scroll_speed.is_sign_positive() { 1 } else { -1 };
 
-        let mut update = |speed, inc: i32| {
-
-            let dt = (1000.0 / speed) as u128;
-            let now = Instant::now();
-            if now.duration_since(self.prev_instant).as_millis() > dt {
-                let x_offset_inc: i32 = self.x_offset as i32 + inc;
-                self.x_offset = x_offset_inc.rem_euclid(self.pixmap.width() as i32) as u32;
-                self.prev_instant = now;
-            }
-        };
-
-        match scroll_mode {
-            Scroll::Off => {},
-            Scroll::Left(speed) => update(speed, 1),
-            Scroll::Right(speed) => update(speed, -1)
-        };
+        let dt = (1000.0 / self.scroll_speed.abs()) as u128;
+        let now = Instant::now();
+        if now.duration_since(self.prev_instant).as_millis() > dt {
+            let x_offset_inc: i32 = self.x_offset as i32 + inc;
+            self.x_offset = x_offset_inc.rem_euclid(self.pixmap.width() as i32) as u32;
+            self.prev_instant = now;
+        }
     }
 
 } 

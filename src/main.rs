@@ -19,8 +19,8 @@ fn main() {
 
     let mut board = UnicornBoard::new();
 
-    board.add_line(line);
     let line = Line::new(&text, 4).with_color(127, 63, 0).with_scroll(Scroll::LeftAuto { speed: 16.0, spacing: 5 });
+    board.set_lines(&[line]);
 
     let running = Arc::new(AtomicBool::new(true));
 

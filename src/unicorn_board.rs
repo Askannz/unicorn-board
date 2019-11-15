@@ -47,8 +47,10 @@ impl UnicornBoard {
         }
     }
 
-    pub fn add_line(&mut self, line_config: Line) {
-        self.lines.push(BoardLine::new(&self.font_map, line_config));
+    pub fn set_lines(&mut self, line_configs_list: &[Line]) {
+        for line_config in line_configs_list {
+            self.lines.push(BoardLine::new(&self.font_map, line_config.clone()));
+        }
     }
 
     pub fn display(&mut self) {

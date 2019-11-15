@@ -86,6 +86,13 @@ impl UnicornBoard {
     }
 }
 
+impl Drop for UnicornBoard {
+    fn drop(&mut self) {
+        self.hat_hd.clear_pixels();
+        self.hat_hd.display().unwrap();
+    }
+}
+
 #[derive(Clone)]
 pub struct Line {
     y: u32,

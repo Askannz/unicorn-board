@@ -2,6 +2,8 @@ mod unicorn_board;
 
 use std::env;
 use std::thread;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 use unicorn_board::{UnicornBoard, Scroll, Line};
 
@@ -20,7 +22,13 @@ fn main() {
     let line = Line::new(&text, 4).with_color(127, 63, 0).with_scroll(Scroll::Left(16.0));
     board.add_line(line);
 
-    loop {
+    let running = Arc::new(AtomicBool::new(true));
+
+    ctrlc::set_handler({ let running = running.clone(); move || {
+        running.store(false, Ordering::SeqCst);
+    }}).expect("Error setting Ctrl-C handler");
+
+    while running.load(Ordering::SeqCst) {
         board.display();
         thread::sleep(Duration::from_millis(10));
     }

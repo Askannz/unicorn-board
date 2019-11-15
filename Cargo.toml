@@ -8,3 +8,4 @@ edition = "2018"
 unicorn_hat_hd = "0.2"
 failure = "0.1.6"
 image = "0.22.3"
+ctrlc = { version = "3.0", features = ["termination"] }

@@ -16,10 +16,10 @@ pub type Font = font::Font;
 #[derive(Clone, Copy)]
 pub enum Scroll {
     Off,
-    Left { speed: f32, spacing: u32 },
-    Right { speed: f32, spacing: u32 },
-    LeftAuto { speed: f32, spacing: u32 },
-    RightAuto { speed: f32, spacing: u32 },
+    Left { speed: f32, wrap_gap: u32 },
+    Right { speed: f32, wrap_gap: u32 },
+    LeftAuto { speed: f32, wrap_gap: u32 },
+    RightAuto { speed: f32, wrap_gap: u32 },
 }
 
 pub struct UnicornBoard {
@@ -142,20 +142,20 @@ impl BoardLine {
 
         let scroll_speed = match scroll_mode {
             Scroll::Off => 0.0,
-            Scroll::Left { speed, spacing: _ } => speed,
-            Scroll::Right { speed, spacing: _ } => -speed,
-            Scroll::LeftAuto { speed, spacing: _ } => if text.len() > n { speed } else { 0.0 },
-            Scroll::RightAuto { speed, spacing: _ } => if text.len() > n { -speed } else { 0.0 },
+            Scroll::Left { speed, wrap_gap: _ } => speed,
+            Scroll::Right { speed, wrap_gap: _ } => -speed,
+            Scroll::LeftAuto { speed, wrap_gap: _ } => if text.len() > n { speed } else { 0.0 },
+            Scroll::RightAuto { speed, wrap_gap: _ } => if text.len() > n { -speed } else { 0.0 },
         };
 
         let text = match scroll_mode {
 
-            Scroll::Left { speed: _, spacing } | Scroll::LeftAuto { speed: _, spacing } => {
-                text + &String::from(" ").repeat(spacing as usize)
+            Scroll::Left { speed: _, wrap_gap } | Scroll::LeftAuto { speed: _, wrap_gap } => {
+                text + &String::from(" ").repeat(wrap_gap as usize)
             },
 
-            Scroll::Right { speed: _, spacing } | Scroll::RightAuto { speed: _, spacing } => {
-                String::from(" ").repeat(spacing as usize) + &text
+            Scroll::Right { speed: _, wrap_gap } | Scroll::RightAuto { speed: _, wrap_gap } => {
+                String::from(" ").repeat(wrap_gap as usize) + &text
             },
 
             _ => text.clone()

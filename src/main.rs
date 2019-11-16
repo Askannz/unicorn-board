@@ -13,7 +13,7 @@ fn main() {
         let font = fonts_list[i % fonts_list.len()];
         Line::new(&text)
         .with_color(127, 63, 0)
-        .with_scroll(Scroll::LeftAuto { speed: 16.0, spacing: 5 })
+        .with_scroll(Scroll::LeftAuto { speed: 16.0, wrap_gap: 5 })
         .with_font(font)
     }).collect();
 

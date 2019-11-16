@@ -38,6 +38,8 @@ impl UnicornBoard {
 
         let line_configs_list: Vec<Line> = line_configs_list.into();
 
+        if line_configs_list.is_empty() { return }
+
         let handle = std::thread::spawn({let running = running.clone(); move || {
 
             let font_maps = font::load_fontmaps();
@@ -54,13 +56,11 @@ impl UnicornBoard {
 
             while running.load(Ordering::SeqCst) {
 
-                for line in lines.iter_mut() {
-                    line.update_scroll();
-                    line.display(&mut hat_hd);
-                }
-                
                 hat_hd.display().unwrap();
-                std::thread::sleep(Duration::from_millis(10));
+
+                let next_t = lines.iter_mut().map(|line| line.update(&mut hat_hd) ).min().unwrap();
+
+                std::thread::sleep(next_t - Instant::now());
             }
 
             hat_hd.clear_pixels();
@@ -205,6 +205,12 @@ impl BoardLine {
         pixmap
     }
 
+    fn update(&mut self, hat_hd: &mut UnicornHatHd) -> Instant {
+        let next_t = self.update_scroll();
+        self.display(hat_hd);
+        next_t
+    }
+
     fn display(&self, hat_hd: &mut UnicornHatHd) {
 
         let (pixmap_w, pixmap_h) = self.pixmap.dimensions();
@@ -225,7 +231,7 @@ impl BoardLine {
         }
     }
 
-    fn update_scroll(&mut self) {
+    fn update_scroll(&mut self) -> Instant {
 
         let inc = if self.scroll_speed.is_sign_positive() { 1 } else { -1 };
 
@@ -236,6 +242,8 @@ impl BoardLine {
             self.x_offset = x_offset_inc.rem_euclid(self.pixmap.width() as i32) as u32;
             self.prev_instant = now;
         }
+
+        Instant::now() + Duration::from_millis(dt as u64)
     }
 
 } 

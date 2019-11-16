@@ -1,20 +1,33 @@
 use std::time::Instant;
+use std::collections::HashMap;
 use image::{GrayImage, RgbImage, Rgb};
 use unicorn_hat_hd::{UnicornHatHd, Rotate};
-
-const CHAR_W: u32 = 8;
-const CHAR_H: u32 = 8;
-const FONTMAP_X0: u32 = 0;
-const FONTMAP_Y0: u32 = 0;
-const FONTMAP_STRIDE_X: u32 = 8;
-const FONTMAP_STRIDE_Y: u32 = 8;
-const FONTMAP_NB_COLS: u32 = 32;
-const FONTMAP_NB_LINES: u32 = 4;
 
 const SCREEN_W: u32 = 16;
 const SCREEN_H: u32 = 16;
 
-const MAX_CHARS_PER_LINE: u32 = SCREEN_W / CHAR_W;
+fn get_fonts_meta_info() -> HashMap<Font, FontMeta> {
+
+    let font_5x5_meta = FontMeta {
+        filepath: "fonts/kongtext.png",
+        origin: (0, 0),
+        stride: (8, 8),
+        char_dims: (8, 8),
+        map_dims: (32, 4)
+    };
+
+    let font_8x8_meta = FontMeta {
+        filepath: "fonts/magero.png",
+        origin: (0, 0),
+        stride: (5, 5),
+        char_dims: (5, 5),
+        map_dims: (32, 4)
+    };
+
+    [(Font::Small5x5, font_5x5_meta),
+    (Font::Big8x8, font_8x8_meta)]
+    .iter().cloned().collect()
+}
 
 #[derive(Clone, Copy)]
 pub enum Scroll {
@@ -25,11 +38,26 @@ pub enum Scroll {
     RightAuto { speed: f32, spacing: u32 },
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Font {
+    Small5x5,
+    Big8x8
+}
+
+#[derive(Clone)]
+struct FontMeta {
+    filepath: &'static str,
+    origin: (u32, u32),
+    stride: (u32, u32),
+    char_dims: (u32, u32),
+    map_dims: (u32, u32)
+}
+
 pub struct UnicornBoard {
 
     hat_hd: UnicornHatHd,
     lines: Vec<BoardLine>,
-    font_map: Vec<GrayImage>
+    font_maps: HashMap<Font, Vec<GrayImage>>
 
 }
 
@@ -43,14 +71,16 @@ impl UnicornBoard {
         UnicornBoard { 
             hat_hd,
             lines: Vec::new(),
-            font_map: UnicornBoard::load_fontmap()
+            font_maps: UnicornBoard::load_fontmaps()
         }
     }
 
     pub fn set_lines(&mut self, line_configs_list: &[Line]) {
-        for (i, line_config) in line_configs_list.iter().enumerate() {
-            let y = (i as u32) * CHAR_H;
-            self.lines.push(BoardLine::new(&self.font_map, y, line_config.clone()));
+
+        let mut y = 0;
+        for line_config in line_configs_list.iter() {
+            self.lines.push(BoardLine::new(&self.font_maps, y, line_config.clone()));
+            y += self.font_maps[&line_config.font][0].height();
         }
     }
 
@@ -71,23 +101,30 @@ impl UnicornBoard {
         }
     }
 
-    fn load_fontmap() -> Vec<GrayImage> {
+    fn load_fontmaps() -> HashMap<Font, Vec<GrayImage>> {
 
-        let mut dyn_image = image::open("font.png").unwrap();
+        let make_fontmap = |font_meta: FontMeta| {
 
-        let mut font_map = Vec::new();
-        for j in 0..FONTMAP_NB_LINES {
-            for i in 0..FONTMAP_NB_COLS {
-                let char_map = dyn_image.crop(
-                    FONTMAP_X0 + i * FONTMAP_STRIDE_X,
-                    FONTMAP_Y0 + j * FONTMAP_STRIDE_Y,
-                    CHAR_W,
-                    CHAR_H).to_luma();
-                font_map.push(char_map);
+            let mut dyn_image = image::open(font_meta.filepath).unwrap();
+
+            let mut font_map = Vec::new();
+            for j in 0..font_meta.map_dims.1 {
+                for i in 0..font_meta.map_dims.0 {
+                    let char_map = dyn_image.crop(
+                        font_meta.origin.0 + i * font_meta.stride.0,
+                        font_meta.origin.1 + j * font_meta.stride.1,
+                        font_meta.char_dims.0,
+                        font_meta.char_dims.1).to_luma();
+                    font_map.push(char_map);
+                }
             }
-        }
 
-        font_map
+            font_map
+        };
+
+        get_fonts_meta_info().iter().map(|(font, font_meta)| {
+            (*font, make_fontmap(font_meta.clone()))
+        }).collect()
     }
 }
 
@@ -102,7 +139,8 @@ impl Drop for UnicornBoard {
 pub struct Line {
     scroll_mode: Scroll,
     text: String,
-    color: (u8, u8, u8)
+    color: (u8, u8, u8),
+    font: Font
 }
 
 impl Line {
@@ -112,7 +150,8 @@ impl Line {
         Line {
             scroll_mode: Scroll::Off,
             text: text.into(),
-            color: (255, 255, 255)
+            color: (255, 255, 255),
+            font: Font::Big8x8
         }
 
     }
@@ -129,6 +168,12 @@ impl Line {
         new_line
     }
 
+    pub fn with_font(&self, font: Font) -> Line {
+        let mut new_line = self.clone();
+        new_line.font = font;
+        new_line
+    }
+
 }
 
 pub struct BoardLine {
@@ -142,11 +187,11 @@ pub struct BoardLine {
 
 impl BoardLine {
 
-    fn new(font_map: &Vec<GrayImage>, y: u32, line_config: Line) -> BoardLine {
+    fn new(font_maps: &HashMap<Font, Vec<GrayImage>>, y: u32, line_config: Line) -> BoardLine {
 
-        let Line { scroll_mode, text, color } = line_config;
+        let Line { scroll_mode, text, color, font } = line_config;
 
-        let n = MAX_CHARS_PER_LINE as usize;
+        let n = (SCREEN_W / font_maps[&font][0].width()) as usize;
 
         let scroll_speed = match scroll_mode {
             Scroll::Off => 0.0,
@@ -175,29 +220,30 @@ impl BoardLine {
             scroll_speed,
             x_offset: 0,
             prev_instant: Instant::now(),
-            pixmap: BoardLine::make_pixmap(font_map, &text, color)
+            pixmap: BoardLine::make_pixmap(&font_maps[&font], &text, color)
         }
     }
 
     fn make_pixmap(font_map: &Vec<GrayImage>, text: &String, color: (u8, u8, u8)) -> RgbImage {
 
-        let n = MAX_CHARS_PER_LINE as usize;
+        let (char_w, char_h) = font_map[0].dimensions();
+        let n = (SCREEN_W / char_w)  as usize;
 
         let padded_text: String = {
             if text.len() < n { format!("{: <1$}", text, n) }
             else { text.clone() }
         };
 
-        let pixmap_w = padded_text.len() as u32 * CHAR_W;
-        let pixmap_h = CHAR_H;
+        let pixmap_w = padded_text.len() as u32 * char_w;
+        let pixmap_h = char_h;
 
         let mut pixmap = RgbImage::new(pixmap_w, pixmap_h);
 
         for (i, c) in padded_text.chars().enumerate() {
-            for dx in 0..CHAR_W {
-                for dy in 0..CHAR_H {
+            for dx in 0..char_w {
+                for dy in 0..char_h {
 
-                    let x = (i as u32) * CHAR_W + dx;
+                    let x = (i as u32) * char_w + dx;
                     let y = dy;
 
                     let active = font_map[c as usize].get_pixel(dx, dy)[0] > 0;
@@ -214,10 +260,10 @@ impl BoardLine {
 
     fn display(&self, hat_hd: &mut UnicornHatHd) {
 
-        let pixmap_w = self.pixmap.width();
+        let (pixmap_w, pixmap_h) = self.pixmap.dimensions();
 
         for dx in 0..SCREEN_W {
-            for dy in 0..CHAR_H {
+            for dy in 0..pixmap_h {
 
                 let x_pixmap = (self.x_offset + dx) % pixmap_w;
                 let y_pixmap = dy;

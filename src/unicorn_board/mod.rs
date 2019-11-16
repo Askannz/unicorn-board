@@ -225,7 +225,9 @@ impl BoardLine {
                 let y_screen = self.y + dy;
 
                 let Rgb(color) = self.pixmap.get_pixel(x_pixmap, y_pixmap);
-                hat_hd.set_pixel(x_screen as usize, y_screen as usize, (*color).into());
+                if x_screen < SCREEN_W && y_screen < SCREEN_H {
+                    hat_hd.set_pixel(x_screen as usize, y_screen as usize, (*color).into());
+                }
             }
 
         }

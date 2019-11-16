@@ -10,6 +10,7 @@ use unicorn_hat_hd::{UnicornHatHd, Rotate};
 
 const SCREEN_W: u32 = 16;
 const SCREEN_H: u32 = 16;
+const MAX_UPDATE_DELAY: u64 = 1000;
 
 pub type Font = font::Font;
 
@@ -60,7 +61,10 @@ impl UnicornBoard {
 
                 let next_t = lines.iter_mut().map(|line| line.update(&mut hat_hd) ).min().unwrap();
 
-                std::thread::sleep(next_t - Instant::now());
+                let now = Instant::now();
+                if next_t > now {
+                    std::thread::sleep(next_t - now);
+                }
             }
 
             hat_hd.clear_pixels();
@@ -235,17 +239,25 @@ impl BoardLine {
 
     fn update_scroll(&mut self) -> Instant {
 
-        let inc = if self.scroll_speed.is_sign_positive() { 1 } else { -1 };
+        if self.scroll_speed != 0.0 {
 
-        let dt = (1000.0 / self.scroll_speed.abs()) as u128;
-        let now = Instant::now();
-        if now.duration_since(self.prev_instant).as_millis() > dt {
-            let x_offset_inc: i32 = self.x_offset as i32 + inc;
-            self.x_offset = x_offset_inc.rem_euclid(self.pixmap.width() as i32) as u32;
-            self.prev_instant = now;
+            let inc = if self.scroll_speed.is_sign_positive() { 1 } else { -1 };
+
+            let dt = (1000.0 / self.scroll_speed.abs()) as u128;
+            let now = Instant::now();
+            if now.duration_since(self.prev_instant).as_millis() > dt {
+                let x_offset_inc: i32 = self.x_offset as i32 + inc;
+                self.x_offset = x_offset_inc.rem_euclid(self.pixmap.width() as i32) as u32;
+                self.prev_instant = now;
+            }
+
+            let dt_clamp = std::cmp::min(dt as u64, MAX_UPDATE_DELAY);
+
+            Instant::now() + Duration::from_millis(dt_clamp)
+
+        } else {
+            Instant::now() + Duration::from_millis(MAX_UPDATE_DELAY)
         }
-
-        Instant::now() + Duration::from_millis(dt as u64)
     }
 
 } 

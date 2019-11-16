@@ -46,18 +46,18 @@ struct FontMeta {
 fn get_fonts_meta_info() -> HashMap<Font, FontMeta> {
 
     let font_5x5_meta = FontMeta {
-        filepath: "fonts/kongtext.png",
-        origin: (0, 0),
-        stride: (8, 8),
-        char_dims: (8, 8),
-        map_dims: (32, 4)
-    };
-
-    let font_8x8_meta = FontMeta {
         filepath: "fonts/magero.png",
         origin: (0, 0),
         stride: (5, 5),
         char_dims: (5, 5),
+        map_dims: (32, 4)
+    };
+
+    let font_8x8_meta = FontMeta {
+        filepath: "fonts/kongtext.png",
+        origin: (0, 0),
+        stride: (8, 8),
+        char_dims: (8, 8),
         map_dims: (32, 4)
     };
 

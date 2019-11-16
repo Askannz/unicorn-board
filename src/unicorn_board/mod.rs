@@ -1,7 +1,10 @@
 mod font;
 
-use std::time::Instant;
+use std::time::{Instant, Duration};
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
+use std::thread::JoinHandle;
 use image::{GrayImage, RgbImage, Rgb};
 use unicorn_hat_hd::{UnicornHatHd, Rotate};
 
@@ -20,58 +23,62 @@ pub enum Scroll {
 }
 
 pub struct UnicornBoard {
-
-    hat_hd: UnicornHatHd,
-    lines: Vec<BoardLine>,
-    font_maps: HashMap<Font, Vec<GrayImage>>
-
+    thread_control: Option<(Arc<AtomicBool>, JoinHandle<()>)>
 }
 
 impl UnicornBoard {
 
     pub fn new() -> UnicornBoard {
-
-        let mut hat_hd = UnicornHatHd::default();
-        hat_hd.set_rotation(Rotate::Rot180);
-
-        UnicornBoard { 
-            hat_hd,
-            lines: Vec::new(),
-            font_maps: font::load_fontmaps()
-        }
+        UnicornBoard { thread_control: None }
     }
 
-    pub fn set_lines(&mut self, line_configs_list: &[Line]) {
+    pub fn activate(&mut self, line_configs_list: &[Line]) {
 
-        let mut y = 0;
-        for line_config in line_configs_list.iter() {
-            self.lines.push(BoardLine::new(&self.font_maps, y, line_config.clone()));
-            y += self.font_maps[&line_config.font][0].height();
-        }
-    }
+        let running = Arc::new(AtomicBool::new(true));
 
-    pub fn display(&mut self) {
+        let line_configs_list: Vec<Line> = line_configs_list.into();
 
-        self.update_scroll();
+        let handle = std::thread::spawn({let running = running.clone(); move || {
 
-        for line in self.lines.iter() {
-            line.display(&mut self.hat_hd);
-        }
+            let font_maps = font::load_fontmaps();
 
-        self.hat_hd.display().unwrap();
-    }
+            let mut hat_hd = UnicornHatHd::default();
+            hat_hd.set_rotation(Rotate::Rot180);
 
-    fn update_scroll(&mut self) {
-        for line in self.lines.iter_mut() {
-            line.update_scroll();
-        }
+            let mut lines = Vec::new();
+            let mut y = 0;
+            for line_config in line_configs_list.iter() {
+                lines.push(BoardLine::new(&font_maps, y, line_config.clone()));
+                y += font_maps[&line_config.font][0].height();
+            }
+
+            while running.load(Ordering::SeqCst) {
+
+                for line in lines.iter_mut() {
+                    line.update_scroll();
+                    line.display(&mut hat_hd);
+                }
+                
+                hat_hd.display().unwrap();
+                std::thread::sleep(Duration::from_millis(10));
+            }
+
+            hat_hd.clear_pixels();
+            hat_hd.display().unwrap();
+            
+        }});
+
+        self.thread_control = Some((running, handle));
     }
 }
 
 impl Drop for UnicornBoard {
     fn drop(&mut self) {
-        self.hat_hd.clear_pixels();
-        self.hat_hd.display().unwrap();
+        let thread_control = std::mem::replace(&mut self.thread_control, None);
+        if let Some((running, handle)) = thread_control {
+            running.store(false, Ordering::SeqCst);
+            handle.join().unwrap();
+        }
     }
 }
 

@@ -1,16 +1,11 @@
 mod unicorn_board;
 
 use std::env;
-use std::thread;
-use std::sync::atomic::{AtomicBool, Ordering};
-use std::sync::Arc;
-use std::time::Duration;
 use unicorn_board::{UnicornBoard, Scroll, Line, Font};
 
 fn main() {
 
     let texts_list: Vec<String> = env::args().skip(1).collect();
-    let mut board = UnicornBoard::new();
 
     let fonts_list: Vec<Font> = vec![Font::Small5x5, Font::Big8x8];
 
@@ -22,17 +17,10 @@ fn main() {
         .with_font(font)
     }).collect();
 
-    board.set_lines(&lines_list);
+    let mut board = UnicornBoard::new();
+    board.activate(&lines_list);
 
-    let running = Arc::new(AtomicBool::new(true));
-
-    ctrlc::set_handler({ let running = running.clone(); move || {
-        running.store(false, Ordering::SeqCst);
-    }}).expect("Error setting Ctrl-C handler");
-
-    while running.load(Ordering::SeqCst) {
-        board.display();
-        thread::sleep(Duration::from_millis(10));
-    }
+    println!("Press ENTER to continue");
+    std::io::stdin().read_line(&mut String::new()).unwrap();
 }
 
